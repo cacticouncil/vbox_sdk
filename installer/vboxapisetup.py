@@ -19,7 +19,7 @@ You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
 
-import os, sys, platform, subprocess, re
+import sys, platform, subprocess, re, os, os.path
 from distutils.core import setup
 
 def cleanupComCache():
@@ -53,10 +53,14 @@ def patchWith(file,install,sdk):
     os.rename(newFile, file)
 
 
+def isWSL():
+    return platform.system() == 'Linux' and 'Microsoft' in platform.version()
+
+
 def getEnvironmentVariable(variableName):
     variableValue = os.environ.get(variableName, None)
 
-    if variableValue is None and platform.system() == 'Linux' and 'Microsoft' in platform.version():
+    if variableValue is None and isWSL():
         psPath = subprocess.check_output(["which powershell.exe"], shell=True).decode('utf-8').strip()
         variableValue = subprocess.check_output([psPath, "echo", "\$Env:" + variableName])
         variableValue = variableValue.decode('utf-8').strip()
@@ -72,12 +76,19 @@ def getEnvironmentVariable(variableName):
 
 # See http://docs.python.org/distutils/index.html
 def main(argv):
+    WSL_DEFAULT_DIR = '/usr/lib/win_virtualbox'
 
     vboxDest = getEnvironmentVariable("VBOX_MSI_INSTALL_PATH")
     if vboxDest is None:
         vboxDest = getEnvironmentVariable("VBOX_INSTALL_PATH")
     if vboxDest is None:
         raise Exception("No VBOX_INSTALL_PATH or VBOX_MSI_INSTALL_PATH defined, exiting")
+
+    if isWSL(): # In WSL, link to a /usr/lib directory to avoid path name issues (spaces, etc)
+        if os.path.lexists(WSL_DEFAULT_DIR):
+            os.unlink(WSL_DEFAULT_DIR)
+        os.symlink(vboxDest, WSL_DEFAULT_DIR)
+        vboxDest = WSL_DEFAULT_DIR
 
     vboxVersion = getEnvironmentVariable("VBOX_VERSION")
     if vboxVersion is None:
