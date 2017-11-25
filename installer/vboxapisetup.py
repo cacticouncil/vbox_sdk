@@ -19,7 +19,7 @@ You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
 
-import os,sys
+import os, sys, platform, subprocess, re
 from distutils.core import setup
 
 def cleanupComCache():
@@ -52,20 +52,33 @@ def patchWith(file,install,sdk):
         pass
     os.rename(newFile, file)
 
+
+def pathWinToLinux(pathname):
+    captures = re.search(r'\\([A-Za-z])\:(.*)', pathname)
+    return "/mnt/" + captures.group(1).lower() + re.sub(r'\\', '/', captures.group(2))
+
+
 # See http://docs.python.org/distutils/index.html
 def main(argv):
+
     vboxDest = os.environ.get("VBOX_MSI_INSTALL_PATH", None)
     if vboxDest is None:
         vboxDest = os.environ.get('VBOX_INSTALL_PATH', None)
-        if vboxDest is None:
-            raise Exception("No VBOX_INSTALL_PATH defined, exiting")
+    if vboxDest is None and platform.system() == 'Linux' and 'Microsoft' in platform.version():
+        vboxDest = subprocess.check_output(["powershell.exe", "echo", "\$Env:VBOX_MSI_INSTALL_PATH"]).decode('utf-8').strip()
+        if vboxDest == u'\\':
+            subprocess.check_output(["powershell.exe", "echo", "\$Env:VBOX_MSI_INSTALL_PATH"]).decode('utf-8').strip()
+        if vboxDest == u'\\':
+            vboxDest = None
+        else:
+            vboxDest = pathWinToLinux(vboxDest)
+    if vboxDest is None:
+        raise Exception("No VBOX_INSTALL_PATH or VBOX_MSI_INSTALL_PATH defined, exiting")
 
     vboxVersion = os.environ.get("VBOX_VERSION", None)
     if vboxVersion is None:
         # Should we use VBox version for binding module versioning?
         vboxVersion = "1.0"
-
-    import platform
 
     if platform.system() == 'Windows':
         cleanupComCache()
