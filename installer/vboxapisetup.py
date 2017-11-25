@@ -53,29 +53,33 @@ def patchWith(file,install,sdk):
     os.rename(newFile, file)
 
 
-def pathWinToLinux(pathname):
-    captures = re.search(r'\\([A-Za-z])\:(.*)', pathname)
-    return "/mnt/" + captures.group(1).lower() + re.sub(r'\\', '/', captures.group(2))
+def getEnvironmentVariable(variableName):
+    variableValue = os.environ.get(variableName, None)
+
+    if variableValue is None and platform.system() == 'Linux' and 'Microsoft' in platform.version():
+        psPath = subprocess.check_output(["which powershell.exe"], shell=True).decode('utf-8').strip()
+        variableValue = subprocess.check_output([psPath, "echo", "\$Env:" + variableName])
+        variableValue = variableValue.decode('utf-8').strip()
+
+        if variableValue == u'\\':
+            variableValue = None
+        else:
+            captures = re.search(r'\\([A-Za-z])\:(.*)', variableValue)
+            variableValue = "/mnt/" + captures.group(1).lower() + re.sub(r'\\', '/', captures.group(2))
+
+    return variableValue
 
 
 # See http://docs.python.org/distutils/index.html
 def main(argv):
 
-    vboxDest = os.environ.get("VBOX_MSI_INSTALL_PATH", None)
+    vboxDest = getEnvironmentVariable("VBOX_MSI_INSTALL_PATH")
     if vboxDest is None:
-        vboxDest = os.environ.get('VBOX_INSTALL_PATH', None)
-    if vboxDest is None and platform.system() == 'Linux' and 'Microsoft' in platform.version():
-        vboxDest = subprocess.check_output(["powershell.exe", "echo", "\$Env:VBOX_MSI_INSTALL_PATH"]).decode('utf-8').strip()
-        if vboxDest == u'\\':
-            subprocess.check_output(["powershell.exe", "echo", "\$Env:VBOX_MSI_INSTALL_PATH"]).decode('utf-8').strip()
-        if vboxDest == u'\\':
-            vboxDest = None
-        else:
-            vboxDest = pathWinToLinux(vboxDest)
+        vboxDest = getEnvironmentVariable("VBOX_INSTALL_PATH")
     if vboxDest is None:
         raise Exception("No VBOX_INSTALL_PATH or VBOX_MSI_INSTALL_PATH defined, exiting")
 
-    vboxVersion = os.environ.get("VBOX_VERSION", None)
+    vboxVersion = getEnvironmentVariable("VBOX_VERSION")
     if vboxVersion is None:
         # Should we use VBox version for binding module versioning?
         vboxVersion = "1.0"
